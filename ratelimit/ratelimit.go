@@ -10,23 +10,16 @@ type Limiter interface {
 	Increment(context.Context, string, int) error
 }
 
-type RateLimitExceeded struct {
+type LimitStatus struct {
 	Remaining int
 	Limit     int
 	Period    time.Duration
 	Reset     time.Time
 }
 
-func ErrRateLimitExceeded(remaining int, limit int, period time.Duration, reset time.Time) error {
-	return RateLimitExceeded{
-		Remaining: remaining,
-		Limit:     limit,
-		Period:    period,
-		Reset:     reset,
-	}
-}
+type ErrRateLimitExceeded LimitStatus
 
-func (e RateLimitExceeded) Error() string {
+func (e ErrRateLimitExceeded) Error() string {
 	return fmt.Sprintf(
 		"rate limit of %d per %v has been exceeded and resets at %v",
 		e.Limit, e.Period, e.Reset)
