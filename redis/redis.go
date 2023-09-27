@@ -6,8 +6,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Southclaws/sliding-window-counters/ratelimit"
 	"github.com/go-redis/redis/v8"
+
+	"github.com/Southclaws/sliding-window-counters/ratelimit"
 )
 
 type Redis struct {
@@ -21,19 +22,24 @@ func New(client *redis.Client, limit int, period, expiry time.Duration) *Redis {
 	return &Redis{client, limit, period, expiry}
 }
 
-func (r *Redis) Increment(ctx context.Context, key string, incr int) error {
+func (r *Redis) Increment(ctx context.Context, key string, incr int) (*ratelimit.LimitStatus, error) {
 	now := time.Now()
 	timestamp := fmt.Sprint(now.Truncate(r.counterWindow).Unix())
 
 	val, err := r.client.HIncrBy(ctx, key, timestamp, int64(incr)).Result()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// check if current window has exceeded the limit
 	if val >= int64(r.limit) {
 		// Otherwise, check if just this fixed window counter period is over
-		return ratelimit.ErrRateLimitExceeded(0, r.limit, r.limitPeriod, now.Add(r.limitPeriod))
+		return nil, ratelimit.ErrRateLimitExceeded{
+			Remaining: 0,
+			Limit:     r.limit,
+			Period:    r.limitPeriod,
+			Reset:     now.Add(r.limitPeriod),
+		}
 	}
 
 	// create or move whole limit period window expiry
@@ -42,7 +48,7 @@ func (r *Redis) Increment(ctx context.Context, key string, incr int) error {
 	// Get all the bucket values and sum them.
 	vals, err := r.client.HGetAll(ctx, key).Result()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// The time to start summing from, any buckets before this are ignored.
@@ -61,9 +67,19 @@ func (r *Redis) Increment(ctx context.Context, key string, incr int) error {
 		}
 	}
 
-	if total >= int(r.limit) {
-		return ratelimit.ErrRateLimitExceeded(0, r.limit, r.limitPeriod, now.Add(r.limitPeriod))
+	if total >= r.limit {
+		return nil, ratelimit.ErrRateLimitExceeded{
+			Remaining: 0,
+			Limit:     r.limit,
+			Period:    r.limitPeriod,
+			Reset:     now.Add(r.limitPeriod),
+		}
 	}
 
-	return nil
+	return &ratelimit.LimitStatus{
+		Remaining: r.limit - total,
+		Limit:     r.limit,
+		Period:    r.limitPeriod,
+		Reset:     now.Add(r.limitPeriod),
+	}, nil
 }
