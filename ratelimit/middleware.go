@@ -1,6 +1,7 @@
 package ratelimit
 
 import (
+	"errors"
 	"net"
 	"net/http"
 	"strconv"
@@ -56,27 +57,29 @@ func Middleware(l Limiter, kf KeyFunc, weight int) func(next http.Handler) http.
 				return
 			}
 
-			exceeded, ok := l.Increment(ctx, key, weight).(RateLimitExceeded)
-			if !ok {
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
-
-			limit := exceeded.Limit
-			remaining := exceeded.Remaining
-			resetTime := exceeded.Reset.UTC().Format(time.RFC1123)
-
-			w.Header().Set(RateLimitLimit, strconv.FormatUint(uint64(limit), 10))
-			w.Header().Set(RateLimitRemaining, strconv.FormatUint(uint64(remaining), 10))
-			w.Header().Set(RateLimitReset, resetTime)
-
-			if !ok {
+			limitStatus, err := l.Increment(ctx, key, weight)
+			var exceeded ErrRateLimitExceeded
+			switch {
+			case errors.As(err, &exceeded):
+				resetTime := exceeded.Reset.UTC().Format(time.RFC1123)
 				w.Header().Set(RetryAfter, resetTime)
 				http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
 				return
-			}
+			case err != nil:
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			default:
+				limit := limitStatus.Limit
+				remaining := limitStatus.Remaining
+				resetTime := limitStatus.Reset.UTC().Format(time.RFC1123)
 
-			next.ServeHTTP(w, r)
+				w.Header().Set(RateLimitLimit, strconv.FormatUint(uint64(limit), 10))
+				w.Header().Set(RateLimitRemaining, strconv.FormatUint(uint64(remaining), 10))
+				w.Header().Set(RateLimitReset, resetTime)
+
+				next.ServeHTTP(w, r)
+
+			}
 		})
 	}
 }

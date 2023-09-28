@@ -7,7 +7,7 @@ import (
 )
 
 type Limiter interface {
-	Increment(context.Context, string, int) error
+	Increment(context.Context, string, int) (*LimitStatus, error)
 }
 
 type LimitStatus struct {
