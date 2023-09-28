@@ -35,11 +35,7 @@ func (r *Redis) Increment(ctx context.Context, key string, incr int) (*ratelimit
 	if val >= int64(r.limit) {
 		// Otherwise, check if just this fixed window counter period is over
 		return nil, ratelimit.ErrRateLimitExceeded{
-			Remaining: 0,
-			Limit:     r.limit,
-			Period:    r.limitPeriod,
-			Reset:     now.Add(r.limitPeriod),
-		}
+			Remaining: 0, Limit: r.limit, Period: r.limitPeriod, Reset: now.Add(r.limitPeriod)}
 	}
 
 	// create or move whole limit period window expiry
@@ -69,11 +65,7 @@ func (r *Redis) Increment(ctx context.Context, key string, incr int) (*ratelimit
 
 	if total >= r.limit {
 		return nil, ratelimit.ErrRateLimitExceeded{
-			Remaining: 0,
-			Limit:     r.limit,
-			Period:    r.limitPeriod,
-			Reset:     now.Add(r.limitPeriod),
-		}
+			Remaining: 0, Limit: r.limit, Period: r.limitPeriod, Reset: now.Add(r.limitPeriod)}
 	}
 
 	return &ratelimit.LimitStatus{
