@@ -37,11 +37,7 @@ func (r *Redis) Increment(ctx context.Context, key string, incr int) (*ratelimit
 	} else if val >= int64(r.limit) {
 		// Otherwise, check if just this fixed window counter period is over
 		return nil, ratelimit.ErrRateLimitExceeded{
-			Remaining: 0,
-			Limit:     r.limit,
-			Period:    r.limitPeriod,
-			Reset:     now.Add(r.limitPeriod),
-		}
+			Remaining: 0, Limit: r.limit, Period: r.limitPeriod, Reset: now.Add(r.limitPeriod)}
 	}
 
 	// Get all the bucket values and sum them.
@@ -68,11 +64,7 @@ func (r *Redis) Increment(ctx context.Context, key string, incr int) (*ratelimit
 
 	if total >= r.limit {
 		return nil, ratelimit.ErrRateLimitExceeded{
-			Remaining: 0,
-			Limit:     r.limit,
-			Period:    r.limitPeriod,
-			Reset:     now.Add(r.limitPeriod),
-		}
+			Remaining: 0, Limit: r.limit, Period: r.limitPeriod, Reset: now.Add(r.limitPeriod)}
 	}
 
 	return &ratelimit.LimitStatus{
