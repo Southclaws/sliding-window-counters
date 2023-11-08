@@ -30,13 +30,14 @@ func (r *Redis) Increment(ctx context.Context, key string, incr int) error {
 		return err
 	}
 
-	if val == 1 {
-		// If this hash was only just created, set its expiry.
-		r.client.Expire(ctx, key, r.limitPeriod)
-	} else if val >= int64(r.limit) {
+	// check if current window has exceeded the limit
+	if val >= int64(r.limit) {
 		// Otherwise, check if just this fixed window counter period is over
 		return ratelimit.ErrRateLimitExceeded(0, r.limit, r.limitPeriod, now.Add(r.limitPeriod))
 	}
+
+	// create or move whole limit period window expiry
+	r.client.Expire(ctx, key, r.limitPeriod)
 
 	// Get all the bucket values and sum them.
 	vals, err := r.client.HGetAll(ctx, key).Result()
